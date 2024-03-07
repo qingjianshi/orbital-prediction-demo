@@ -1,0 +1,736 @@
+<template>
+    <div ref="mapContainer" class="map-container">
+        <div class="title">
+            <h1>卫星轨道预测及可视化系统</h1>
+        </div>
+        <div class="select_box" :style="selectBoxStyles">
+            <div class="buttons">
+                <el-button @click="changeTab('prediction')"
+                    :style="{ width: '50%', 'background-color': activeTab === 'prediction' ? '#283848' : '#2c3e50' }">轨道模拟</el-button>
+                <el-button @click="changeTab('transit')"
+                    :style="{ width: '50%', 'background-color': activeTab === 'transit' ? '#283848' : '#2c3e50' }">过境预测</el-button>
+            </div>
+            <div v-if="activeTab === 'prediction'" style="margin-top: 5vh;">
+                <p style="color: aliceblue;z-index: 1000;font-weight: bold; text-align: center;font-size: 18px">
+                    卫星轨道预测与可视化</p>
+                <div style="display: flex; flex-direction: column;">
+                    <label for="timeRange"
+                        style="font-size: 16px;margin-top: 10px;margin-bottom: 10px;background-color:#283848;">开始和结束时间</label>
+                    <div class="quick-select" style="margin-top: 10px;margin-bottom: 10px;">
+                        <el-button @click="selecthour">未来一小时</el-button>
+                        <el-button @click="selectday">未来一天</el-button>
+                        <el-button @click="select3day">未来三天</el-button>
+                    </div>
+                    <el-date-picker v-model="timeRange" type="datetimerange" range-separator="至"
+                        start-placeholder="开始日期" end-placeholder="结束日期" :shortcuts="shortcuts"></el-date-picker>
+                    <label for="selectedsatellite"
+                        style="font-size: 16px;margin-top: 10px;margin-bottom: 10px;background-color:#283848; width: 100%;">卫星选择</label>
+                </div>
+
+                <div class="checkbox-container">
+                    <el-checkbox-group v-model="selectedsatellite">
+                        <el-checkbox v-for="satellite in satellite_list" :label="satellite" :key="satellite"
+                            class="el-checkbox-button">
+                            {{ satellite }}
+                        </el-checkbox>
+                    </el-checkbox-group>
+                </div>
+
+                <div class="buttons">
+                    <el-button @click="reset" :style="{ width: '50%' }">重置</el-button>
+                    <el-button @click="confirm" :style="{ width: '50%' }">确认</el-button>
+                </div>
+            </div>
+
+            <div v-if="activeTab === 'transit'" style="margin-top: 5vh;">
+
+                <p style="color: aliceblue;z-index: 1000;font-weight: bold; text-align: center;font-size: 18px">卫星过境预测
+                </p>
+                <div class="buttons">
+                    <el-button @click="change_dataselect_way('drag_box')"
+                        :style="{ width: '50%', 'background-color': box_data_select === 'drag_box' ? '#283848' : '#2c3e50' }">地图框选</el-button>
+                    <el-button @click="change_dataselect_way('draw_free')"
+                        :style="{ width: '50%', 'background-color': box_data_select === 'draw_free' ? '#283848' : '#2c3e50' }">自由绘制</el-button>
+                </div>
+                <div v-if="box_data_select === 'drag_box'" style="margin-top: 4vh;position: absolute;">
+                    
+                </div>
+                <div v-if="box_data_select === 'draw_free'" class="buttons" style="margin-top: 4vh;position: absolute;">
+                    <el-tooltip class="item" effect="dark" content="绘制一个多边形,点击左键开始,绘制三个以上点后,点击右键结束" placement="top">
+                        <el-button @click="startDrawing('Polygon')" style="width: 50%;">绘制面</el-button>
+                        </el-tooltip>
+
+                        <el-tooltip class="item" effect="dark" content="绘制一个矩形,点击左键开始,拖动到指定位置,点击左键结束" placement="top">
+                        <el-button @click="startDrawing('Rectangle')" style="width: 50%;">绘制矩形</el-button>
+                        </el-tooltip>
+
+                </div>
+                <div style="margin-top:10vh; display: flex">
+                    <el-input v-model="select_box_name"></el-input>
+                    <el-button @click="draw_del">清空选择</el-button>
+                </div>
+                <div class="buttons" style="position: absolute;">
+                    <el-button @click="change_time_satellite('select_time')"
+                        :style="{ width: '50%', 'background-color': time_satelite === 'select_time' ? '#283848' : '#2c3e50' }">按时间</el-button>
+                    <el-button @click="change_time_satellite('select_satellite')"
+                        :style="{ width: '50%', 'background-color': time_satelite === 'select_satellite' ? '#283848' : '#2c3e50' }">按卫星</el-button>
+                </div>
+                <div style="display: flex; flex-direction: column;" v-if="time_satelite === 'select_time'">
+                    <label for="timeRange2"
+                        style="font-size: 16px;margin-top: 10px;margin-bottom: 10px;background-color:#283848;">开始和结束时间</label>
+                    <div class="quick-select" style="margin-top: 10px;margin-bottom: 10px;">
+                        <el-button @click="selecthour2">未来一周</el-button>
+                        <el-button @click="selectday2">未来一月</el-button>
+                        <el-button @click="select3day2">未来一年</el-button>
+                    </div>
+                    <el-date-picker v-model="timeRange2" type="datetimerange" range-separator="至"
+                        start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
+                </div>
+                <div class="checkbox-container2" v-if="time_satelite === 'select_satellite'">
+                    <el-checkbox-group v-model="selectedsatellite2">
+                        <el-checkbox v-for="satellite in satellite_list" :label="satellite" :key="satellite"
+                            class="el-checkbox-button">
+                            {{ satellite }}
+                        </el-checkbox>
+                    </el-checkbox-group>
+                </div>
+                <div class="buttons" style="position:relative;margin-top: 3vh;">
+                    <el-button @click="reset2" :style="{ width: '50%' }">重置</el-button>
+                    <el-button @click="confirm2" :style="{ width: '50%' }">确认</el-button>
+                </div>
+            </div>
+        </div>
+        <div class="collapse-arrow" @click="toggleSelectBox" :style="arrow">
+            <el-icon size='30px'>
+                <ArrowRight v-if="isCollapsed" />
+                <ArrowLeft v-else />
+            </el-icon>
+        </div>
+    </div>
+</template>
+
+<script setup>
+import { ref, onMounted, computed, reactive, watch } from 'vue';
+import axios from 'axios';
+import { ElDatePicker, ElCheckbox, ElCheckboxGroup, ElButton, ElMessage } from 'element-plus';
+import { useRouter } from 'vue-router';
+import { ArrowRight, ArrowLeft } from '@element-plus/icons-vue';
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import 'ol/ol.css';
+import { Map, View } from 'ol';
+import { Tile as TileLayer } from 'ol/layer';
+import XYZ from 'ol/source/XYZ';
+import { Draw } from 'ol/interaction';
+import { Vector as VectorLayer } from 'ol/layer';
+import { Vector as VectorSource } from 'ol/source';
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
+import { createBox } from 'ol/interaction/Draw';
+import { toLonLat } from 'ol/proj';
+const mapContainer = ref(null);
+const map = reactive({ value: null });
+const vectorSource = new VectorSource();
+const drawStyle = new Style({
+    fill: new Fill({
+        color: 'rgba(255, 255, 255, 0.2)',
+    }),
+    stroke: new Stroke({
+        color: '#ffcc33',
+        width: 2,
+    }),
+});
+const router = useRouter();
+const isCollapsed = ref(false); // 使用ref创建响应式数据
+const timeRange = ref([]);
+const timeRange2 = ref([]);
+const selectedsatellite = ref([]);
+const selectedsatellite2 = ref([]);
+const satellite_list = ref([]);
+const orbit_data = ref([]);
+const orbit_data2 = ref([]);
+const select_box_data = ref({ geometry: null });
+const activeTab = ref('prediction');
+const time_satelite = ref(null);
+const box_data_select = ref('drag_box');
+const select_box_name = ref(null);
+let drawInteraction;
+
+// 切换标签页的函数
+const changeTab = (tab) => {
+    activeTab.value = tab;
+    draw_del()
+};
+
+const toggleSelectBox = () => {
+    isCollapsed.value = !isCollapsed.value; // 修改响应式数据的值
+};
+
+const selectBoxStyles = computed(() => ({
+    transition: 'width 0.5s',
+    marginTop: '15vh',
+    width: isCollapsed.value ? '0' : '25vw',
+    overflow: isCollapsed.value ? 'hidden' : 'visible', // 当折叠时隐藏内容
+}));
+
+const arrow = computed(() => ({
+    marginLeft: isCollapsed.value ? '0' : '25vw',
+}));
+
+const change_dataselect_way = (tab) => {
+    box_data_select.value = tab;
+    draw_del()
+};
+
+const change_time_satellite = (tab) => {
+    time_satelite.value = tab;
+    if (timeRange2) {
+        timeRange2.value = [];
+    }
+    if (selectedsatellite2) {
+        selectedsatellite2.value = [];
+    }
+};
+
+const vector = new VectorLayer({
+    source: new VectorSource(),
+});
+
+function draw_del() {
+    // 这里应该是您已有的移除当前所有交互的逻辑
+    const interactions = map.value.getInteractions().getArray();
+    interactions.forEach((interaction) => {
+        if (interaction instanceof Draw) {
+            map.value.removeInteraction(interaction);
+        }
+    });
+    // 同时也清除矢量图层中的要素
+    vector.getSource().clear();
+    select_box_name.value = '';
+    select_box_data.value.geometry = null;
+}
+
+function startDrawing(type) {
+    draw_del(); // 清除之前的绘制交互
+    let geometryFunction;
+    if (type === 'Rectangle') {
+        geometryFunction = createBox();
+    } else {
+        geometryFunction = undefined; // 多边形不需要特殊的几何函数
+    }
+
+    drawInteraction = new Draw({
+        source: vector.getSource(), // 使用矢量源
+        type: type === 'Rectangle' ? 'Circle' : 'Polygon',
+        geometryFunction: geometryFunction,
+        style: drawStyle, // 应用样式
+    });
+
+    map.value.addInteraction(drawInteraction);
+
+    drawInteraction.on('drawend', event => {
+        const feature = event.feature;
+        vector.getSource().addFeature(feature); // 将绘制的要素添加到矢量源
+
+        if (!map.value.getLayers().getArray().includes(vector)) {
+            map.value.addLayer(vector); // 更正后的方法
+        }
+
+        const geometry = feature.getGeometry();
+        let coordinates;
+        let geometryString;
+
+        // 根据绘制的类型处理坐标数据
+        if (type === 'Rectangle') {
+            // 矩形的几何类型是多边形，其坐标数组是多层嵌套的
+            coordinates = geometry.getCoordinates()[0];
+            geometryString = `POLYGON((${coordinates.map(coord => toLonLat(coord).join(' ')).join(',')}))`;
+        } else if (type === 'Polygon') {
+            coordinates = geometry.getCoordinates()[0];
+            geometryString = `POLYGON((${coordinates.map(coord => toLonLat(coord).join(' ')).join(',')}))`;
+        }
+
+        select_box_data.value.geometry = geometryString;
+        select_box_name.value = `自由绘制${type}`,
+            console.log('Finished drawing:', select_box_data.value);
+        // 绘制结束后，移除交互
+        vector.getSource().clear();
+    });
+}
+
+const get_satellite_list = async () => {
+    try {
+        const response = await axios.get('https://api-orbital.remotesensing.sh.cn/remotesensing/orbitlist_res/');
+        response.data.satellite_list.sort((a, b) => {
+            const aMatch = a.match(/(\D+)(\d+)/);
+            const bMatch = b.match(/(\D+)(\d+)/);
+
+            if (aMatch && bMatch) {
+                const aPrefix = aMatch[1];
+                const bPrefix = bMatch[1];
+                const aNumber = parseInt(aMatch[2]);
+                const bNumber = parseInt(bMatch[2]);
+
+                if (aPrefix === bPrefix) {
+                    return aNumber - bNumber;
+                } else {
+                    return aPrefix.localeCompare(bPrefix);
+                }
+            } else {
+                // If the format doesn't match, fall back to a basic comparison
+                return a.localeCompare(b);
+            }
+        });
+        satellite_list.value = response.data.satellite_list;
+    } catch (error) {
+        console.error('Error fetching orbits:', error);
+    }
+};
+
+const shortcuts = [
+    {
+        text: '未来一小时',
+        value: () => {
+            const end = new Date()
+            const start = new Date()
+            end.setTime(start.getTime() + 3600 * 1000)
+            return [start, end]
+        },
+    },
+    {
+        text: '未来一天',
+        value: () => {
+            const end = new Date();
+            const start = new Date();
+            end.setTime(start.getTime() + 3600 * 1000 * 24);
+            return [start, end];
+        }
+    },
+    {
+        text: '未来三天',
+        value: () => {
+            const end = new Date()
+            const start = new Date()
+            end.setTime(start.getTime() + 3600 * 1000 * 24 * 3)
+            return [start, end]
+        },
+    },
+]
+
+const selecthour = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 3600 * 1000);
+    timeRange.value = [start, end];
+
+};
+
+const selectday = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 3600 * 1000 * 24);
+    timeRange.value = [start, end];
+};
+
+const select3day = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 3600 * 1000 * 24 * 3);
+    timeRange.value = [start, end];
+}
+
+const selecthour2 = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 7*24*3600 * 1000);
+    timeRange2.value = [start, end];
+
+};
+
+const selectday2 = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 3600 * 1000 * 24*30);
+    timeRange2.value = [start, end];
+};
+
+const select3day2 = () => {
+    const end = new Date();
+    const start = new Date();
+    end.setTime(start.getTime() + 3600 * 1000 * 24 *365);
+    timeRange2.value = [start, end];
+}
+
+const reset = () => {
+    timeRange.value = [];
+    selectedsatellite.value = [];
+    orbit_data.value = [];
+};
+
+const reset2 = () => {
+    draw_del();
+    if (timeRange2) {
+        timeRange2.value = [];
+    }
+    if (selectedsatellite2) {
+        selectedsatellite2.value = [];
+    }
+    orbit_data2.value = [];
+};
+
+const confirm = async () => {
+    if (timeRange.value.length !== 2) {
+        ElMessage.warning('请选择时间');
+        return;
+    }
+    if (selectedsatellite.value.length <= 0) {
+        ElMessage.warning('请选择卫星');
+        return;
+    }
+
+    // 将UTC时间转换为目标时区的时间，这里减去8小时
+    const timeStart = new Date(timeRange.value[0]).toISOString();
+    const timeEnd = new Date(timeRange.value[1]).toISOString();
+
+    // 根据需要调整时间
+    const offsetMs = 8 * 60 * 60 * 1000; // 8小时的毫秒数
+    const timeStartAdjusted2 = new Date(new Date(timeStart).getTime() + offsetMs).toISOString();
+    const timeEndAdjusted2 = new Date(new Date(timeEnd).getTime() + offsetMs).toISOString();
+
+    const payload = {
+        satellite: selectedsatellite.value,
+        time_start: timeStart,
+        time_end: timeEnd,
+    };
+
+    const payload2 = {
+        satellite: selectedsatellite.value,
+        time_start: timeStartAdjusted2,
+        time_end: timeEndAdjusted2,
+    };
+    try {
+        const response = await axios.post('https://api-orbital.remotesensing.sh.cn/remotesensing/orbit_res/', payload);
+        orbit_data.value = response.data;
+        localStorage.setItem('orbitData', JSON.stringify(orbit_data.value));
+        localStorage.setItem('payload2', JSON.stringify(payload2));
+        router.push({
+            path: '/orbit_prediction',
+        });
+    } catch (error) {
+        console.error('Error posting data:', error);
+    }
+    saveSelections(); // 保存选择
+};
+
+const confirm2 = async () => {
+    let payload;
+    let payload22;
+    console.log(select_box_data.value.geometry)
+    if (select_box_data.value.geometry === null || select_box_data.value.geometry.length < 3) {
+        ElMessage.warning('请选择正确区域');
+        return;
+    }
+    console.log('time_sate', time_satelite.value)
+    if (time_satelite.value === null) {
+        ElMessage.warning('请选择时间或者卫星');
+        return;
+    }
+    else if (time_satelite.value === 'select_time') {
+        if (timeRange2.value.length !== 2) {
+            ElMessage.warning('请选择时间');
+            return;
+        }
+        else {
+            // 将UTC时间转换为目标时区的时间，这里减去8小时
+            const timeStart = new Date(timeRange2.value[0]).toISOString();
+            const timeEnd = new Date(timeRange2.value[1]).toISOString();
+
+            // 根据需要调整时间
+            const offsetMs = 8 * 60 * 60 * 1000; // 8小时的毫秒数
+            const timeStartAdjusted2 = new Date(new Date(timeStart).getTime() + offsetMs).toISOString();
+            const timeEndAdjusted2 = new Date(new Date(timeEnd).getTime() + offsetMs).toISOString();
+
+            payload = {
+                geometry: select_box_data.value.geometry,
+                time_start: timeStart,
+                time_end: timeEnd,
+            };
+
+            payload22 = {
+                geometry: select_box_data.value.geometry,
+                time_start: timeStartAdjusted2,
+                time_end: timeEndAdjusted2,
+            };
+        }
+    }
+    else if (time_satelite.value === 'select_satellite') {
+        if (selectedsatellite2.value.length <= 0) {
+            ElMessage.warning('请选择卫星');
+            return;
+        } else {
+            payload = {
+                geometry: select_box_data.value.geometry,
+                satellite: selectedsatellite2.value,
+            };
+
+            payload22 = {
+                geometry: select_box_data.value.geometry,
+                satellite: selectedsatellite2.value,
+            };
+        }
+    }
+
+    try {
+        console.log(payload)
+        const response = await axios.post('https://api-orbital.remotesensing.sh.cn/remotesensing/orbit_res/', payload);
+        orbit_data2.value = response.data;
+        localStorage.setItem('orbitData2', JSON.stringify(orbit_data2.value));
+        localStorage.setItem('payload22', JSON.stringify(payload22));
+        router.push({
+            path: '/orbit_transit',
+        });
+    } catch (error) {
+        console.error('Error posting data:', error);
+    }
+};
+
+const saveSelections = () => {
+    const selections = {
+        timeRange: timeRange.value,
+        selectedsatellite: selectedsatellite.value,
+    };
+    localStorage.setItem('userSelections', JSON.stringify(selections));
+};
+
+const restoreSelections = () => {
+    const storedSelections = localStorage.getItem('userSelections');
+    if (storedSelections) {
+        const selections = JSON.parse(storedSelections);
+        timeRange.value = selections.timeRange;
+        selectedsatellite.value = selections.selectedsatellite;
+    }
+};
+
+watch([timeRange, selectedsatellite], () => {
+    saveSelections(); // 当时间范围或选定的卫星更改时保存
+});
+
+
+
+
+onMounted(() => {
+    map.value = new Map({
+        target: mapContainer.value,
+        layers: [
+            //   new TileLayer({
+            //     source: new XYZ({
+            //       url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=vec_c&tk=c66498df4ce5b06fa503fa919f7f4195',
+            //     }),
+            //   }),
+            //   new TileLayer({
+            //   source: new XYZ({
+            //     url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=cva_c&tk=c66498df4ce5b06fa503fa919f7f4195',
+            //   }),
+            // }),
+            new TileLayer({
+                source: new XYZ({
+                    url: 'http://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}'
+                })
+            }),
+
+            new VectorLayer({
+                source: vectorSource,
+                style: drawStyle,
+            }),
+        ],
+        view: new View({
+            center: [12923468.57, 4865948.20], // 使用墨卡托坐标范围内的一个点
+            zoom: 3, // 适当的缩放级别
+            projection: 'EPSG:3857' // 使用墨卡托投影
+        }),
+    });
+    get_satellite_list()
+    restoreSelections();
+
+});
+</script>
+
+<style scoped>
+.map-container {
+    height: 100vh;
+    position: relative;
+    z-index: 1000;
+    max-height: 100vh;
+}
+
+#map {
+    background-color: black;
+}
+
+.select_box {
+    position: absolute;
+    z-index: 1000;
+}
+
+.title {
+    position: absolute;
+    color: white;
+    z-index: 1000;
+}
+
+.buttons {
+    position: absolute;
+    display: flex;
+    z-index: 1000;
+    margin-top: auto;
+    width: 25vw;
+    /* 将子元素横向排列 */
+}
+
+/* 添加到 <style scoped> 中 */
+.checkbox-container {
+    display: flex;
+    /* 使用flex布局 */
+    flex-direction: column;
+    /* 使子元素垂直排列 */
+    gap: 5px;
+    /* 设置元素之间的间隙 */
+    max-height: 30vh;
+    /* 设置一个最大高度 */
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* 内容超出时显示滚动条 */
+    margin-top: 10px;
+    /* 距离上方的距离 */
+}
+
+.checkbox-container2 {
+    display: flex;
+    /* 使用flex布局 */
+    flex-direction: column;
+    /* 使子元素垂直排列 */
+    gap: 5px;
+    /* 设置元素之间的间隙 */
+    max-height: 30vh;
+    /* 设置一个最大高度 */
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-top: 5vh;
+    /* 内容超出时显示滚动条 */
+    /* 距离上方的距离 */
+}
+
+.checkbox-container .el-checkbox {
+    width: 100%;
+    /* 设置复选框占满整行 */
+    margin-bottom: 5px;
+    /* 设置复选框之间的间隙 */
+    color: rgb(255, 255, 255);
+    /* 设置标签的字体颜色 */
+}
+
+.checkbox-container2 .el-checkbox {
+    width: 100%;
+    /* 设置复选框占满整行 */
+    margin-bottom: 5px;
+    /* 设置复选框之间的间隙 */
+    color: rgb(255, 255, 255);
+    /* 设置标签的字体颜色 */
+}
+
+.checkbox-container .el-checkbox-button {
+    justify-content: flex-start;
+    /* 文本靠左对齐 */
+}
+
+.checkbox-container2 .el-checkbox-button {
+    justify-content: flex-start;
+    /* 文本靠左对齐 */
+}
+
+.checkbox-container .el-checkbox__label {
+    font-size: 14px;
+    /* 设置标签的字体大小 */
+    color: rgb(255, 255, 255);
+    /* 设置标签的字体颜色 */
+}
+
+.checkbox-container2 .el-checkbox__label {
+    font-size: 14px;
+    /* 设置标签的字体大小 */
+    color: rgb(255, 255, 255);
+    /* 设置标签的字体颜色 */
+}
+
+.select_box {
+    /* ...其他样式保持不变... */
+    background-color: #2c3e50;
+    /* 深蓝/灰色背景色，适合白色字体 */
+    border-radius: 10px;
+    /* 可选：为方框添加圆角 */
+}
+
+/* 设置标签和按钮的颜色，以符合深灰色背景 */
+.title h1,
+p,
+label,
+.el-checkbox__label {
+    color: white;
+    /* 白色字体 */
+}
+
+/* 设置按钮默认背景颜色 */
+.buttons .el-button {
+    background-color: #34495e;
+    /* 深灰色背景色 */
+    color: white;
+    /* 白色文字 */
+    border: none;
+    /* 取消边框 */
+}
+
+/* 按钮在鼠标悬停时的状态 */
+.buttons .el-button:hover {
+    background-color: #4a69bd;
+    /* 更亮的蓝色，鼠标悬停时显示 */
+}
+
+/* 设置快速选择按钮的默认背景颜色 */
+.quick-select .el-button {
+    background-color: #34495e;
+    color: white;
+    border: none;
+}
+
+/* 快速选择按钮在激活时的样式 */
+.quick-select .el-button[aria-pressed='true'] {
+    background-color: #4a69bd;
+}
+
+/* 根据激活状态设置按钮背景 */
+.buttons .el-button[aria-pressed='true'] {
+    background-color: #4a69bd;
+    /* 选中时使用更鲜明亮的蓝色 */
+}
+
+.collapse-arrow {
+    position: absolute;
+    margin-top: 35vh;
+    margin-left: 28vw;
+    transform: translateY(-50%);
+    background-color: transparent;
+    /* 可选：透明背景 */
+    border: none;
+    /* 取消边框 */
+    color: #077ef4;
+    z-index: 1010;
+    /* 确保图标在 select_box 之上 */
+}
+
+html,
+body {
+    height: 100vh;
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
+</style>
