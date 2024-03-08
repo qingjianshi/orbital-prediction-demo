@@ -52,22 +52,21 @@
                     <el-button @click="change_dataselect_way('draw_free')"
                         :style="{ width: '50%', 'background-color': box_data_select === 'draw_free' ? '#283848' : '#2c3e50' }">自由绘制</el-button>
                 </div>
-                <div v-if="box_data_select === 'drag_box'" style="margin-top: 4vh;position: absolute;">
-                    
+                <div v-if="box_data_select === 'drag_box'" style="margin-top: 4vh;position: absolute;width: 100%;">
+                    <el-cascader v-model="selected_area_Values" :options="options" @change="handleChange" placeholder="请选择地区" 
+                        :props="cascaderProps" clearable style="width: 100%">
+                    </el-cascader>
                 </div>
                 <div v-if="box_data_select === 'draw_free'" class="buttons" style="margin-top: 4vh;position: absolute;">
                     <el-tooltip class="item" effect="dark" content="绘制一个多边形,点击左键开始,绘制三个以上点后,点击右键结束" placement="top">
                         <el-button @click="startDrawing('Polygon')" style="width: 50%;">绘制面</el-button>
-                        </el-tooltip>
-
-                        <el-tooltip class="item" effect="dark" content="绘制一个矩形,点击左键开始,拖动到指定位置,点击左键结束" placement="top">
+                    </el-tooltip>
+                    <el-tooltip class="item" effect="dark" content="绘制一个矩形,点击左键开始,拖动到指定位置,点击左键结束" placement="top">
                         <el-button @click="startDrawing('Rectangle')" style="width: 50%;">绘制矩形</el-button>
-                        </el-tooltip>
-
-                </div>
-                <div style="margin-top:10vh; display: flex">
-                    <el-input v-model="select_box_name"></el-input>
+                    </el-tooltip>
                     <el-button @click="draw_del">清空选择</el-button>
+                </div>
+                <div style="margin-top:10vh; display: flex">     
                 </div>
                 <div class="buttons" style="position: absolute;">
                     <el-button @click="change_time_satellite('select_time')"
@@ -112,7 +111,7 @@
 <script setup>
 import { ref, onMounted, computed, reactive, watch } from 'vue';
 import axios from 'axios';
-import { ElDatePicker, ElCheckbox, ElCheckboxGroup, ElButton, ElMessage } from 'element-plus';
+import { ElDatePicker, ElCheckbox, ElCheckboxGroup, ElButton, ElMessage,ElCascader } from 'element-plus';
 import { useRouter } from 'vue-router';
 import { ArrowRight, ArrowLeft } from '@element-plus/icons-vue';
 import 'element-plus/theme-chalk/dark/css-vars.css'
@@ -151,9 +150,60 @@ const select_box_data = ref({ geometry: null });
 const activeTab = ref('prediction');
 const time_satelite = ref(null);
 const box_data_select = ref('drag_box');
-const select_box_name = ref(null);
 let drawInteraction;
+const selected_area_Values = ref([]);
+const options = ref([
+  { 
+    value: '中国',
+    label: '中国',
+    children: [] 
+  }
+]);
 
+const cascaderProps = {
+  value: 'value',
+  label: 'label',
+  children: 'children',
+  checkStrictly: true, // 非严格的父子节点选择关系
+  emitPath: false // 只返回选中的节点值
+};
+
+const apiEndpoint = 'your-api-endpoint'; // 你的API端点
+
+// 根据选择的值获取下一个级别的选项
+async function fetchOptions(value, level) {
+  try {
+    const response = await axios.get(`${apiEndpoint}/${value}`);
+    if (level === 1) {
+      options.value[0].children = response.data.map(province => ({
+        value: province.name, // 省份代码作为值
+        label: province.name, // 省份名称作为标签
+        children: [] // 为市级数据预留空数组
+      }));
+    } else if (level === 2) {
+      const province = options.value[0].children.find(p => p.value === value);
+      if (province) {
+        province.children = response.data.map(city => ({
+          value: city.name, // 市级代码作为值
+          label: city.name, // 市级名称作为标签
+        }));
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching options:', error);
+  }
+}
+
+// 当选择变化时触发
+function handleChange(value, selectedData) {
+  const level = selectedData.length;
+  if (level <= 2) {
+    fetchOptions(value[value.length - 1], level);
+  }
+}
+
+// 初始加载中国的省份
+fetchOptions('中国', 1);
 // 切换标签页的函数
 const changeTab = (tab) => {
     activeTab.value = tab;
@@ -204,7 +254,6 @@ function draw_del() {
     });
     // 同时也清除矢量图层中的要素
     vector.getSource().clear();
-    select_box_name.value = '';
     select_box_data.value.geometry = null;
 }
 
@@ -249,7 +298,6 @@ function startDrawing(type) {
         }
 
         select_box_data.value.geometry = geometryString;
-        select_box_name.value = `自由绘制${type}`,
             console.log('Finished drawing:', select_box_data.value);
         // 绘制结束后，移除交互
         vector.getSource().clear();
@@ -340,7 +388,7 @@ const select3day = () => {
 const selecthour2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 7*24*3600 * 1000);
+    end.setTime(start.getTime() + 7 * 24 * 3600 * 1000);
     timeRange2.value = [start, end];
 
 };
@@ -348,14 +396,14 @@ const selecthour2 = () => {
 const selectday2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 3600 * 1000 * 24*30);
+    end.setTime(start.getTime() + 3600 * 1000 * 24 * 30);
     timeRange2.value = [start, end];
 };
 
 const select3day2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 3600 * 1000 * 24 *365);
+    end.setTime(start.getTime() + 3600 * 1000 * 24 * 365);
     timeRange2.value = [start, end];
 }
 
@@ -561,9 +609,6 @@ onMounted(() => {
     max-height: 100vh;
 }
 
-#map {
-    background-color: black;
-}
 
 .select_box {
     position: absolute;
@@ -675,6 +720,9 @@ label,
 .el-checkbox__label {
     color: white;
     /* 白色字体 */
+}
+.el-cascader .el-input {
+    width:100%
 }
 
 /* 设置按钮默认背景颜色 */
