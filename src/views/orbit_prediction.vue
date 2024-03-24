@@ -3,7 +3,8 @@
         <div class="title">
             <h1>卫星轨道预测可视化</h1>
         </div>
-        <div v-if="orbitData && selectedData" class="selected_info" style="max-height: 15vh;overflow: hidden;overflow-y: scroll;">
+        <div v-if="orbitData && selectedData" class="selected_info"
+            style="max-height: 15vh;overflow: hidden;overflow-y: auto;">
             <div style="font-size: 14px;">
                 <ul>
                     <li v-for="satellite in selectedData.satellite" :key="satellite">
@@ -18,7 +19,7 @@
         </div>
         <div v-if="orbitData && selectedData" class="opera_box" :style="selectBoxStyles">
             <p style="background-color:#283848; width: 100%;font-size: 16px;">轨道显示</p>
-            <div class="satellite-list" style="max-height: 25vh; overflow: hidden;overflow-y: scroll;">
+            <div class="satellite-list" style="max-height: 25vh; overflow: hidden;overflow-y:auto;">
                 <div v-for="(satellite, index) in selectedData.satellite" :key="satellite" class="satellite-item">
                     <div class="radio-group">
                         {{ satellite }}
@@ -47,23 +48,24 @@
         </div>
         <div v-if="orbitData && selectedData" class="custom_box" :style="selectBoxStyles">
             <p style="background-color:#283848; width: 100%;font-size: 16px;">播放速率</p>
-            <el-button @click="setPlaybackSpeed(1)">1X</el-button>
-            <el-button @click="setPlaybackSpeed(5)">5X</el-button>
-            <el-button @click="setPlaybackSpeed(30)">30X</el-button>
-            <el-button @click="setPlaybackSpeed(60)">60X</el-button>
+            <el-button @click="setPlaybackSpeed(1)" style="width: 20%;">1X</el-button>
+            <el-button @click="setPlaybackSpeed(5)" style="width: 20%;">5X</el-button>
+            <el-button @click="setPlaybackSpeed(30)" style="width: 20%;">30X</el-button>
+            <el-button @click="setPlaybackSpeed(60)" style="width: 20%;">60X</el-button>
             <p style="background-color:#283848; width: 100%;font-size: 16px;">观测视角</p>
             <div>
                 <el-cascader v-model="cascaderValue" v-if="cascaderOptions.length > 0" :options="cascaderOptions"
-                    :props="{ expandTrigger: 'hover' }" @change="handleCascaderChange"></el-cascader>
+                    :props="{ expandTrigger: 'hover' }" @change="handleCascaderChange" placeholder="观测视角" clearable
+                    style="width: 100%;"></el-cascader>
             </div>
             <div>
                 <el-cascader v-if="cascaderOptions_eyes.length > 0" v-model="cascaderValue_eye"
-                    :options="cascaderOptions_eyes" :props="{ expandTrigger: 'hover' }"
-                    @change="handleEyesViewChange"></el-cascader>
+                    :options="cascaderOptions_eyes" :props="{ expandTrigger: 'hover' }" @change="handleEyesViewChange"
+                    clearable placeholder="鹰眼图" style="margin-top: 2vh;width: 100%;"></el-cascader>
             </div>
-            <div>
-                <el-button @click="resetCascader">重置视图</el-button>
-                <el-button @click="destroy_eye">退出鹰眼图</el-button>
+            <div style="margin-top: 2vh;">
+                <el-button @click="back_home" style="width: 40%;">返回</el-button>
+                <el-button @click="resetCascader" style="width: 40%;">重置视图</el-button>
             </div>
 
 
@@ -85,14 +87,15 @@
 </template>
 <script setup>
 // 在/orbit_prediction页面的组件中
-import { onMounted, ref, reactive, onBeforeUnmount, watch, watchEffect,computed } from 'vue';
+import { onMounted, ref, reactive, onBeforeUnmount, computed } from 'vue';
 import * as Cesium from 'cesium';
+import { useRouter } from 'vue-router';
 import { ElCheckboxGroup, ElCheckbox, ElCascader, ElButton } from 'element-plus';
 import CesiumNavigation from 'cesium-navigation-es6';
 import { ArrowRight, ArrowLeft } from '@element-plus/icons-vue';
 import 'element-plus/theme-chalk/dark/css-vars.css'
 const orbitData = ref(null);
-const show_eye=ref(false);
+const show_eye = ref(false);
 const selectedData = ref(null);
 const availability = ref(null);
 const orientation = ref(null);
@@ -108,6 +111,7 @@ const corridors = {};
 const outlineOnlys = {};
 const satelliteEntities = ref({});
 const corridorEntitys = {};
+const router = useRouter();
 let viewer;
 let viewer_eye;
 const infoDialogs = {}; // 创建一个对象来存储卫星信息对话框
@@ -123,7 +127,7 @@ const cascaderValue_eye = ref(null);
 const selectedFeatures = reactive({});
 const cascaderOptions = ref([]);
 const cascaderOptions_eyes = ref([]);
-const isCollapsed=ref(false)
+const isCollapsed = ref(false)
 const toggleSelectBox = () => {
     isCollapsed.value = !isCollapsed.value; // 修改响应式数据的值
 };
@@ -169,23 +173,27 @@ const resetCascader = () => {
     cascaderValue.value = null;
     viewer.camera.flyHome(1);
 };
-
-const destroy_eye=()=>{
-    show_eye.value=false;
-    cascaderValue_eye.value=null;
+const back_home = () => {
+    router.push({
+        path: '/',
+    });
 }
 const selectBoxStyles = computed(() => ({
     transition: 'width 0.5s',
-    width: isCollapsed.value ? '0' : '25vw',
+    width: isCollapsed.value ? '0' : '20%',
     overflow: isCollapsed.value ? 'hidden' : 'visible', // 当折叠时隐藏内容
 }));
-const arrow= computed(() => ({
-    marginLeft: isCollapsed.value ? '0' : '25vw',
+const arrow = computed(() => ({
+    marginLeft: isCollapsed.value ? '0' : '20%',
 }));
 // 观测角度选择变化时调用的函数
 const handleCascaderChange = (value) => {
     const selectedOption = value;
-    if (!selectedOption || selectedOption.length === 0) return;
+    if (!selectedOption || selectedOption.length === 0) 
+    {   cascaderValue.value = null;
+        viewer.camera.flyHome(1);
+        return}
+    ;
 
     // 假设entity是你的卫星实体
     const entity = aircraftEntitys[selectedOption[0]];
@@ -195,8 +203,6 @@ const handleCascaderChange = (value) => {
     const position = entity.position.getValue(currentTime);
 
     if (!position) return;
-
-    const camera = viewer.camera;
     let offset;
     switch (selectedOption[1]) {
         case 'top':
@@ -218,14 +224,18 @@ const handleCascaderChange = (value) => {
 };
 // 观测角度选择变化时的函数，添加处理鹰眼视图的逻辑
 const handleEyesViewChange = (value) => {
-    if (!value || value.length === 0) return;
-    show_eye.value=true;
+    if (!value || value.length === 0) {
+        show_eye.value = false;
+        cascaderValue_eye.value = null;
+        return
+    };
+    show_eye.value = true;
     const entity = aircraftEntitys[value[0]];
     if (!entity) return;
 
     // 设置鹰眼视图的跟随目标为选中的卫星实体
     viewer_eye.trackedEntity = entity;
-    
+
     // 确保鹰眼视图相机始终指向卫星
     const updateCameraView = () => {
         const currentTime = viewer.clock.currentTime;
@@ -258,7 +268,7 @@ onMounted(() => {
     });
     // 添加天地图影像注记底图
     viewer.imageryLayers.addImageryProvider(new Cesium.WebMapTileServiceImageryProvider({
-        url: "http://t0.tianditu.gov.cn/img_w/wmts?tk=c66498df4ce5b06fa503fa919f7f4195",
+        url: "https://t0.tianditu.gov.cn/img_w/wmts?tk=9df1e2d38f43b8983357c36603d366e5",
         layer: "img",
         style: "default",
         tileMatrixSetID: "w",
@@ -266,7 +276,7 @@ onMounted(() => {
         maximumLevel: 18
     }))
     viewer.imageryLayers.addImageryProvider(new Cesium.WebMapTileServiceImageryProvider({
-        url: "http://t0.tianditu.gov.cn/cia_w/wmts?tk=c66498df4ce5b06fa503fa919f7f4195",
+        url: "https://t0.tianditu.gov.cn/cia_w/wmts?tk=9df1e2d38f43b8983357c36603d366e5",
         layer: "cia",
         style: "default",
         tileMatrixSetID: "w",
@@ -276,7 +286,7 @@ onMounted(() => {
     viewer._cesiumWidget._creditContainer.style.display = "none";
     // 添加天地图影像注记底图
     viewer_eye.imageryLayers.addImageryProvider(new Cesium.WebMapTileServiceImageryProvider({
-        url: "http://t0.tianditu.gov.cn/img_w/wmts?tk=c66498df4ce5b06fa503fa919f7f4195",
+        url: "https://t0.tianditu.gov.cn/img_w/wmts?tk=9df1e2d38f43b8983357c36603d366e5",
         layer: "img",
         style: "default",
         tileMatrixSetID: "w",
@@ -284,7 +294,7 @@ onMounted(() => {
         maximumLevel: 18
     }))
     viewer_eye.imageryLayers.addImageryProvider(new Cesium.WebMapTileServiceImageryProvider({
-        url: "http://t0.tianditu.gov.cn/cia_w/wmts?tk=c66498df4ce5b06fa503fa919f7f4195",
+        url: "https://t0.tianditu.gov.cn/cia_w/wmts?tk=9df1e2d38f43b8983357c36603d366e5",
         layer: "cia",
         style: "default",
         tileMatrixSetID: "w",
@@ -613,10 +623,11 @@ onBeforeUnmount(() => {
 </script>
 <style scoped>
 .container {
-    max-width: 100vw;
-    max-height: 100vh;
+    width: auto;
+    height: 98vh;
     position: relative;
 }
+
 .collapse-arrow {
     position: absolute;
     margin-top: 35vh;
@@ -630,6 +641,7 @@ onBeforeUnmount(() => {
     z-index: 1010;
     /* 确保图标在 select_box 之上 */
 }
+
 .container2 {
     width: 25%;
     height: 25%;
@@ -740,6 +752,14 @@ onBeforeUnmount(() => {
     position: absolute;
     color: white;
     z-index: 1000;
+    height: 2vh;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    justify-content: center;
+    /* 水平居中 */
 }
 
 .geo_info>p {
