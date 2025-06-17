@@ -11,6 +11,3 @@
 👉 在线预览地址：**[点击查看项目页面](https://qingjianshi.github.io/orbital-prediction-demo)**  
 👉 GitHub 源码链接：**[项目源码](https://github.com/qingjianshi/orbital-prediction-demo)**
 
-🎯 适用于：
-- 求职 WebGIS 前端/空间数据可视化方向
-- 展示自己的技术能力和组件调度能力
