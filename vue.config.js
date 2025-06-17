@@ -7,6 +7,7 @@ let cesiumSource = './node_modules/cesium/Source/' //按理说应该是未打包
 // 此处必需，因为高版本cesium没有这个Workers报错。必写-1
 const cesiumWorkers = '../Build/Cesium/Workers'
 module.exports = defineConfig({
+  publicPath: process.env.NODE_ENV === 'production' ? '/orbital-prediction-demo/' : '/',
   transpileDependencies: true,
   lintOnSave:false,
   configureWebpack: {
