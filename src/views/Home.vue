@@ -31,10 +31,10 @@
     <section class="section preview-section">
       <h2 class="module-title">📸 项目效果图片</h2>
       <div class="screenshot-row">
-        <img src="assets/demo2.jpg" alt="示意图2" class="screenshot-img" />
-        <img src="assets/demo3.jpg" alt="示意图3" class="screenshot-img" />
-        <img src="assets/demo5.jpg" alt="示意图5" class="screenshot-img" />
-        <img src="assets/demo6.jpg" alt="示意图6" class="screenshot-img" />
+        <img src="/orbital-prediction-demo/assets/demo2.jpg" alt="示意图2" class="screenshot-img" />
+        <img src="/orbital-prediction-demo/assets/demo3.jpg" alt="示意图3" class="screenshot-img" />
+        <img src="/orbital-prediction-demo/assets/demo5.jpg" alt="示意图5" class="screenshot-img" />
+        <img src="/orbital-prediction-demo/assets/demo6.jpg" alt="示意图6" class="screenshot-img" />
       </div>
       <p class="carousel-note">支持科研演示、教学展示、可集成部署使用</p>
     </section>
@@ -45,7 +45,7 @@
       <div class="contact-content">
         <div class="contact-left">
           <el-link
-            href="assets/resume.pdf"
+            href="/orbital-prediction-demo/assets/resume.pdf"
             target="_blank"
             download
             class="resume-link"
@@ -64,8 +64,8 @@
         <div class="qr-box">
           <el-image
             style="width: 120px; border-radius: 8px"
-            :src="'assets/wechat_qr.jpg'"
-            :preview-src-list="['assets/wechat_qr.jpg']"
+            :src="'/orbital-prediction-demo/assets/wechat_qr.jpg'"
+            :preview-src-list="['/orbital-prediction-demo/assets/wechat_qr.jpg']"
           />
           <p>📱 微信扫码联系我</p>
         </div>
