@@ -1,7 +1,7 @@
 <template>
     <div v-show="activeTab === 'prediction'" id="cesiumcontainer" class="container">
         <div class="title">
-            <h1>卫星轨道预测及可视化系统</h1>
+            <h1>面向国产卫星的遥感卫星轨道预测及可视化系统平台</h1>
         </div>
         <div class="select_box" :style="selectBoxStyles">
             <div class="buttons">
@@ -58,7 +58,7 @@
 
     <div ref="mapContainer" v-show="activeTab === 'transit'" class="map-container">
         <div class="title">
-            <h1>卫星轨道预测及可视化系统</h1>
+            <h1>面向国产卫星的遥感卫星轨道预测及可视化系统平台</h1>
         </div>
         <div class="select_box" :style="selectBoxStyles">
             <div class="buttons">
@@ -73,7 +73,7 @@
                     卫星过境预测</p>
                 <div style="position: relative;display: flex;z-index: 1000;flex-direction:row;width: 25vw;">
                     <el-button @click="change_dataselect_way('drag_box')"
-                        :style="{ width: '50%', 'background-color': box_data_select === 'drag_box' ? '#283848' : '#2c3e50' }">地图框选</el-button>
+                        :style="{ width: '50%', 'background-color': box_data_select === 'drag_box' ? '#283848' : '#2c3e50' }">行政区选择</el-button>
                     <el-button @click="change_dataselect_way('draw_free')"
                         :style="{ width: '50%', 'background-color': box_data_select === 'draw_free' ? '#283848' : '#2c3e50' }">自由绘制</el-button>
                 </div>
@@ -95,12 +95,12 @@
                     <label for="timeRange2"
                         style="font-size: 16px;margin-top: 10px;margin-bottom: 10px;background-color:#283848;">开始和结束时间</label>
                     <div class="quick-select" style="margin-top: 10px;margin-bottom: 10px;">
-                        <el-button @click="selecthour2">未来一周</el-button>
-                        <el-button @click="selectday2">未来一月</el-button>
-                        <el-button @click="select3day2">未来一年</el-button>
+                        <el-button @click="selecthour2">未来一天</el-button>
+                        <el-button @click="selectday2">未来三天</el-button>
+                        <el-button @click="select3day2">未来一周</el-button>
                     </div>
                     <el-date-picker v-model="timeRange2" type="datetimerange" range-separator="至"
-                        start-placeholder="开始日期" end-placeholder="结束日期" style="width: 23vw;"></el-date-picker>
+                        start-placeholder="开始日期" end-placeholder="结束日期" style="width: 23vw;" :disabled-date="disabledDate"></el-date-picker>
                 </div>
 
                 <div class="checkbox-container">
@@ -118,6 +118,7 @@
             </div>
         </div>
         <div id="mouse-position" class="mouse-position"></div>
+        <div id="overviewMap" class="overview-map"></div>
         <div class="collapse-arrow" @click="toggleSelectBox" :style="arrow">
             <el-icon size='30px'>
                 <ArrowRight v-if="isCollapsed" />
@@ -146,6 +147,8 @@ import { Vector as VectorSource } from 'ol/source';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import { createBox } from 'ol/interaction/Draw';
 import { toLonLat } from 'ol/proj';
+import WKT from 'ol/format/WKT';
+
 import { defaults as defaultControls, FullScreen, ScaleLine, OverviewMap, ZoomSlider, Rotate } from 'ol/control';
 const mapContainer = ref(null);
 const map = reactive({ value: null });
@@ -207,7 +210,7 @@ const cascaderProps = {
     checkStrictly: true, // 非严格的父子节点选择关系
 };
 
-const apiEndpoint = 'https://api-orbital.remotesensing.sh.cn/remotesensing/region_res';
+const apiEndpoint = 'https://api-orbital.3sobs.cn/remotesensing/region_res';
 
 // 根据选择的值获取下一个级别的选项
 async function fetchOptions(value, level) {
@@ -235,26 +238,24 @@ async function fetchOptions(value, level) {
 }
 
 const handleChange = (value) => {
-    if (value){
-    const level = value.length;
-    console.log(value);
-    console.log(level);
-    if (level <= 2) {
-        fetchOptions(value[value.length - 1], level);
-        select_box_data.value.geometry = value[value.length - 1];
-        console.log(select_box_data.value.geometry)
-    } else if (level === 3) {
-        console.log(value[value.length - 1])
-        select_box_data.value.geometry = value[value.length - 1];
-        console.log(select_box_data.value.geometry)
+    if (value) {
+        const level = value.length;
+        if (level <= 2) {
+            fetchOptions(value[value.length - 1], level);
+            select_box_data.value.geometry = value[value.length - 1];
+            console.log(select_box_data.value.geometry)
+        } else if (level === 3) {
+            console.log(value[value.length - 1])
+            select_box_data.value.geometry = value[value.length - 1];
+            console.log(select_box_data.value.geometry)
+        }
     }
-}};
+};
 
 
 // 切换标签页的函数
 const changeTab = (tab) => {
     activeTab.value = tab;
-    draw_del();
 };
 
 const toggleSelectBox = () => {
@@ -275,7 +276,6 @@ const arrow = computed(() => ({
 const change_dataselect_way = (tab) => {
     box_data_select.value = tab;
     reset2();
-    selectedData.value = [];
 };
 
 
@@ -294,6 +294,7 @@ function draw_del() {
     // 同时也清除矢量图层中的要素
     vector.getSource().clear();
     select_box_data.value.geometry = null;
+    localStorage.removeItem('storedGeometry')
 }
 
 function startDrawing(type) {
@@ -326,17 +327,12 @@ function startDrawing(type) {
         let coordinates;
         let geometryString;
 
-        // 根据绘制的类型处理坐标数据
-        if (type === 'Rectangle') {
             // 矩形的几何类型是多边形，其坐标数组是多层嵌套的
             coordinates = geometry.getCoordinates()[0];
             geometryString = `POLYGON((${coordinates.map(coord => toLonLat(coord).join(' ')).join(',')}))`;
-        } else if (type === 'Polygon') {
-            coordinates = geometry.getCoordinates()[0];
-            geometryString = `POLYGON((${coordinates.map(coord => toLonLat(coord).join(' ')).join(',')}))`;
-        }
 
         select_box_data.value.geometry = geometryString;
+        localStorage.setItem('storedGeometry', geometryString); // 存储坐标字符串
         console.log('Finished drawing:', select_box_data.value);
         // 绘制结束后，移除交互
         vector.getSource().clear();
@@ -345,50 +341,33 @@ function startDrawing(type) {
 
 const get_satellite_list = async () => {
     try {
-        const response = await axios.get('https://api-orbital.remotesensing.sh.cn/remotesensing/orbitlist_res/');
-
-        // 创建一个映射以将汉字数字转换为阿拉伯数字
-        const chineseToNumber = {
-            '一': 1,
-            '二': 2,
-            '三': 3,
-            '四': 4,
-            '五': 5,
-            '六': 6,
-            '七': 7,
-            '八': 8,
-            '九': 9,
-            '十': 10,
-            // ...根据需要添加更多的映射
-        };
-
-        // 定义一个函数来将汉字数字转换为阿拉伯数字
-        const chineseNumberToArabic = (chineseNumber) => {
-            return chineseToNumber[chineseNumber] || 0;
-        };
-
+        const response = await axios.get('https://api-orbital.3sobs.cn/remotesensing/orbitlist_res/');
+        console.log(response.data.satellite_list)
         // 排序逻辑
         response.data.satellite_list.sort((a, b) => {
-            const aMatch = a.match(/^(\D{2})([\u4e00-\u9fa5])/);
-            const bMatch = b.match(/^(\D{2})([\u4e00-\u9fa5])/);
+            // 将名称转化为能够直接比较的格式，例如"高分一号"变成"高分01号"
+            const formatName = (name) => {
+                return name.replace(/(\d+)/, (match) => match.padStart(2, '0')).replace('一', '01').replace('二', '02').replace('三', '03').replace('四', '04').replace('五', '05').replace('六', '06').replace('七', '07').replace('八', '08').replace('九', '09');
+            };
 
-            if (aMatch && bMatch) {
-                const aPrefix = aMatch[1];
-                const bPrefix = bMatch[1];
-                const aNumber = chineseNumberToArabic(aMatch[2]);
-                const bNumber = chineseNumberToArabic(bMatch[2]);
+            a = formatName(a);
+            b = formatName(b);
 
-                if (aPrefix === bPrefix) {
-                    return aNumber - bNumber;
-                } else {
-                    return aPrefix.localeCompare(bPrefix);
-                }
-            } else {
-                // 如果格式不匹配，则回退到基本字符串比较
-                return a.localeCompare(b);
+            // 分别处理星号前后的排序，先按前半部分排序，前半部分相同则比较后半部分
+            const [prefixA, suffixA] = a.split('星', 2);
+            const [prefixB, suffixB] = b.split('星', 2);
+
+            if (prefixA === prefixB) {
+                // 如果没有星号后缀，则确保该项排在前面
+                if (!suffixA && suffixB) return -1;
+                if (!suffixB && suffixA) return 1;
+                return suffixA.localeCompare(suffixB);
             }
+
+            return prefixA.localeCompare(prefixB);
         });
         satellite_list.value = response.data.satellite_list;
+        console.log(satellite_list.value)
     } catch (error) {
         console.error('Error fetching orbits:', error);
     }
@@ -450,7 +429,7 @@ const select3day = () => {
 const selecthour2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 7 * 24 * 3600 * 1000);
+    end.setTime(start.getTime() + 1 * 24 * 3600 * 1000);
     timeRange2.value = [start, end];
 
 };
@@ -458,16 +437,22 @@ const selecthour2 = () => {
 const selectday2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 3600 * 1000 * 24 * 30);
+    end.setTime(start.getTime() + 3600 * 1000 * 24 * 3);
     timeRange2.value = [start, end];
 };
 
 const select3day2 = () => {
     const end = new Date();
     const start = new Date();
-    end.setTime(start.getTime() + 3600 * 1000 * 24 * 365);
+    end.setTime(start.getTime() + 3600 * 1000 * 24 * 7);
     timeRange2.value = [start, end];
 }
+
+const disabledDate = (time) => {
+      const now = new Date(new Date -  24 * 60 * 60 * 1000);
+      const sevenDaysLater = new Date(now.getTime() + 30* 24 * 60 * 60 * 1000);
+      return time.getTime() < now.getTime() || time.getTime() > sevenDaysLater.getTime();
+    };
 
 const reset = () => {
     timeRange.value = [];
@@ -477,6 +462,8 @@ const reset = () => {
 
 const reset2 = () => {
     draw_del();
+    localStorage.removeItem('storedGeometry')
+    localStorage.removeItem('selectedOptions')
     selectedData.value = [];
     selectedsatellite2.value = [];
     if (timeRange2) {
@@ -486,7 +473,8 @@ const reset2 = () => {
 };
 
 const confirm = async () => {
-    if (timeRange.value.length !== 2) {
+    console.log(timeRange.value)
+    if (timeRange.value===null || timeRange.value.length !== 2) {
         ElMessage.warning('请选择时间');
         return;
     }
@@ -516,7 +504,7 @@ const confirm = async () => {
         time_end: timeEndAdjusted2,
     };
     try {
-        const response = await axios.post('https://api-orbital.remotesensing.sh.cn/remotesensing/orbit_res/', payload);
+        const response = await axios.post('https://api-orbital.3sobs.cn/remotesensing/orbit_res/', payload);
         orbit_data.value = response.data;
         localStorage.setItem('orbitData', JSON.stringify(orbit_data.value));
         localStorage.setItem('payload2', JSON.stringify(payload2));
@@ -537,8 +525,12 @@ const confirm2 = async () => {
         ElMessage.warning('请选择正确区域');
         return;
     }
-    if (timeRange2.value.length !== 2) {
+    if (timeRange2.value===null ||timeRange2.value.length !== 2) {
         ElMessage.warning('请选择时间');
+        return;
+    }
+    if (selectedsatellite2.value.length===0){
+        ElMessage.warning('请选择卫星');
         return;
     }
     else {
@@ -550,11 +542,11 @@ const confirm2 = async () => {
         const timeStartAdjusted2 = new Date(new Date(timeStart).getTime() + offsetMs).toISOString();
         const timeEndAdjusted2 = new Date(new Date(timeEnd).getTime() + offsetMs).toISOString();
         payload2 = {
-            area: select_box_data.value.geometry,
             time_start: timeStartAdjusted2,
             time_end: timeEndAdjusted2
         }
         localStorage.setItem('select_area', JSON.stringify(payload2));
+        
         if (box_data_select.value === 'draw_free') {
             payload = {
                 geometry: select_box_data.value.geometry,
@@ -574,7 +566,7 @@ const confirm2 = async () => {
     }
     try {
         console.log(payload)
-        const response = await axios.post('https://api-orbital.remotesensing.sh.cn/remotesensing/orbit_res/', payload);
+        const response = await axios.post('https://api-orbital.3sobs.cn/remotesensing/transit_res/', payload);
         orbit_data2.value = response.data;
         console.log(orbit_data2.value);
         localStorage.setItem('orbitData2', JSON.stringify(orbit_data2.value));
@@ -584,27 +576,60 @@ const confirm2 = async () => {
     } catch (error) {
         console.error('Error posting data:', error);
     }
+    saveSelections()
 };
 
 const saveSelections = () => {
     const selections = {
         timeRange: timeRange.value,
         selectedsatellite: selectedsatellite.value,
+        timeRange2: timeRange2.value,
+        selectedsatellite2: selectedsatellite2.value,
+        activeTab:activeTab.value,
+        box_data_select:box_data_select.value,
     };
     localStorage.setItem('userSelections', JSON.stringify(selections));
 };
+
+
+
 
 const restoreSelections = () => {
     const storedSelections = localStorage.getItem('userSelections');
     if (storedSelections) {
         const selections = JSON.parse(storedSelections);
+        activeTab.value=selections.activeTab;
         timeRange.value = selections.timeRange;
+        console.log(timeRange2.value)
         selectedsatellite.value = selections.selectedsatellite;
+        timeRange2.value = selections.timeRange2;
+        selectedsatellite2.value = selections.selectedsatellite2;
+        box_data_select.value=selections.box_data_select;
+    }
+    const storedSelections2 = localStorage.getItem('selectedOptions');
+    const storedGeometryString = localStorage.getItem('storedGeometry');
+    if (box_data_select.value==='draw_free' && storedGeometryString) {
+        const format = new WKT();
+        const storedFeature = format.readFeature(storedGeometryString, {
+            dataProjection: 'EPSG:4326',
+            featureProjection: map.value.getView().getProjection()
+        });
+        select_box_data.value.geometry = storedGeometryString;
+        vector.getSource().addFeature(storedFeature);
+        map.value.addLayer(vector);
+    }
+    if (box_data_select.value==='drag_box' && storedSelections2){
+        selectedData.value = JSON.parse(storedSelections2);
+        if (selectedData.value.length > 0) {
+      fetchOptions(selectedData.value[0], 1);
+    }
+    select_box_data.value.geometry=selectedData.value[selectedData.value.length-1]
     }
 };
+
 const createPositionData = (data, key) => {
     data.sort((a, b) => {
-        return new Date(a.time_iso) - new Date(b.time_iso);
+        return new Date(a.time_utc) - new Date(b.time_utc);
     });
     const one_position = [];
     const position_ground1 = [];
@@ -616,7 +641,7 @@ const createPositionData = (data, key) => {
     satellitePositions[key] = { property: new Cesium.SampledPositionProperty(), property2: new Cesium.SampledPositionProperty() };
     data.forEach((item) => {
 
-        const time = Cesium.JulianDate.fromIso8601(item.time_iso);
+        const time = Cesium.JulianDate.fromIso8601(item.time_utc);
         const lon = item.lon;
         const lat = item.lat;
         const height = item.height;
@@ -632,10 +657,15 @@ const createPositionData = (data, key) => {
     });
     return { properties, one_position, position_ground1, satellitePositions, orbit_time };
 };
-watch([timeRange, selectedsatellite], () => {
+watch([timeRange, selectedsatellite,timeRange2, selectedsatellite2,activeTab,select_box_data], () => {
     saveSelections(); // 当时间范围或选定的卫星更改时保存
-    console.log(selectedsatellite.value)
 });
+
+
+
+watch(selectedData, (newVal) => {
+  localStorage.setItem('selectedOptions', JSON.stringify(newVal))
+}, { deep: true })
 
 const get_default_orbit_data = async () => {
 
@@ -649,7 +679,7 @@ const get_default_orbit_data = async () => {
     };
     console.log(payload);
     try {
-        const response = await axios.post('https://api-orbital.remotesensing.sh.cn/remotesensing/orbit_res/', payload);
+        const response = await axios.post('https://api-orbital.3sobs.cn/remotesensing/orbit_res/', payload);
         default_orbit_data.value = response.data;
         console.log(default_orbit_data.value);
         //显示渲染轨道等
@@ -660,8 +690,8 @@ const get_default_orbit_data = async () => {
             const { properties, one_position } = createPositionData(orbit_data['orbit'], key);
             position.value = properties.property;
             position2.value = properties.property2;
-            const firstTimeStr = orbit_data['orbit'][0].time_iso;
-            const lastTimeStr = orbit_data['orbit'][orbit_data['orbit'].length - 1].time_iso;
+            const firstTimeStr = orbit_data['orbit'][0].time_utc;
+            const lastTimeStr = orbit_data['orbit'][orbit_data['orbit'].length - 1].time_utc;
             const start = Cesium.JulianDate.fromIso8601(firstTimeStr);
             const stop = Cesium.JulianDate.fromIso8601(lastTimeStr);
             viewer.value.clock.startTime = start.clone();
@@ -688,7 +718,7 @@ const get_default_orbit_data = async () => {
                     material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString(orbit_data['info'].color)),
                 }
             });
-            const aircraftModelUrl = 'satellite003.gltf';
+            const aircraftModelUrl = 'satellite.gltf';
             aircraftEntitys[orbit_data['info'].chinese_name] = viewer.value.entities.add({
                 show: true,
                 name: orbit_data['info'].chinese_name,
@@ -696,9 +726,9 @@ const get_default_orbit_data = async () => {
                 orientation: new Cesium.VelocityOrientationProperty(position.value),
                 model: {
                     uri: aircraftModelUrl,
-                    minimumPixelSize: 5000,
-                    maximumScale: 50000,
-                    color: Cesium.Color.BLACK,
+                    minimumPixelSize: 100,
+                    maximumScale: 500,
+                    color: Cesium.Color.GREY,
                 }
             });
             satelliteEntities.value[orbit_data['info'].chinese_name] = aircraftEntitys[key];
@@ -725,6 +755,7 @@ const get_default_orbit_data = async () => {
 onMounted(() => {
     get_default_orbit_data();
     console.log(default_orbit_data.value)
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4MjkyOGY5YS1hYmQ0LTQzZTMtODBmMS0zM2IyNjhmNzgyY2IiLCJpZCI6MTU4ODQ3LCJpYXQiOjE2OTEzNzg5NDV9.xWR1MrInwMmJE0O7LJcPcMkCU37FzTLrvPX5M3CMAaI';
     viewer.value = new Cesium.Viewer('cesiumcontainer', { shouldAnimate: true });
     // 添加天地图影像注记底图tk=c66498df4ce5b06fa503fa919f7f4195
     viewer.value.imageryLayers.addImageryProvider(new Cesium.WebMapTileServiceImageryProvider({
@@ -793,41 +824,130 @@ onMounted(() => {
     const overviewMapControl = new OverviewMap({
         // 这里可以设置一些选项，比如collapsed和label等
         layers: [
-            new TileLayer({
+        new TileLayer({
                 source: new XYZ({
-                    url: 'http://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}',
-                })
-            })
+                  url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=vec_w&tk=9df1e2d38f43b8983357c36603d366e5',
+                  tileLoadFunction: function (imageTile, src) {
+                            // 使用滤镜 将白色修改为深色
+                            let img = new Image()
+                            img.crossOrigin = ''
+                            // 设置图片不从缓存取，从缓存取可能会出现跨域，导致加载失败
+                            img.setAttribute('crossOrigin', 'anonymous')
+                            img.onload = function () {
+                                let canvas = document.createElement('canvas')
+                                let w = img.width
+                                let h = img.height
+                                canvas.width = w
+                                canvas.height = h
+                                let context = canvas.getContext('2d')
+                                context.filter = 'grayscale(98%) invert(100%) sepia(20%) hue-rotate(180deg) saturate(1600%) brightness(80%) contrast(90%)'
+                                context.drawImage(img, 0, 0, w, h, 0, 0, w, h)
+                                imageTile.getImage().src = canvas.toDataURL('image/png')
+                            }
+                            img.src = src
+                        },
+                }),
+              }),
+              new TileLayer({
+              source: new XYZ({
+                url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=cva_w&tk=9df1e2d38f43b8983357c36603d366e5',
+                tileLoadFunction: function (imageTile, src) {
+                            // 使用滤镜 将白色修改为深色
+                            let img = new Image()
+                            img.crossOrigin = ''
+                            // 设置图片不从缓存取，从缓存取可能会出现跨域，导致加载失败
+                            img.setAttribute('crossOrigin', 'anonymous')
+                            img.onload = function () {
+                                let canvas = document.createElement('canvas')
+                                let w = img.width
+                                let h = img.height
+                                canvas.width = w
+                                canvas.height = h
+                                let context = canvas.getContext('2d')
+                                context.filter = 'grayscale(98%) invert(100%) sepia(20%) hue-rotate(180deg) saturate(1600%) brightness(80%) contrast(90%)'
+                                context.drawImage(img, 0, 0, w, h, 0, 0, w, h)
+                                imageTile.getImage().src = canvas.toDataURL('image/png')
+                            }
+                            img.src = src
+                        },
+              }),
+            }),
+            // new TileLayer({
+            //     source: new XYZ({
+            //         url: 'http://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}',
+            //     })
+            // })
         ],
         collapseLabel: '\u00BB',
         label: '\u00AB',
-        collapsed: false
+        collapsed: false,
+        collapsible: false, // 按需设定
+        target: 'overviewMap', // 指定target为刚才创建的div的id
     });
 
     map.value = new Map({
         target: mapContainer.value,
         layers: [
-            //   new TileLayer({
-            //     source: new XYZ({
-            //       url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=vec_c&tk=9df1e2d38f43b8983357c36603d366e5',
-            //     }),
-            //   }),
-            //   new TileLayer({
-            //   source: new XYZ({
-            //     url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=cva_c&tk=9df1e2d38f43b8983357c36603d366e5',
-            //   }),
-            // }),
-            new TileLayer({
+              new TileLayer({
                 source: new XYZ({
-                    url: 'http://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}'
-                })
+                  url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=vec_w&tk=9df1e2d38f43b8983357c36603d366e5',
+                  tileLoadFunction: function (imageTile, src) {
+                            // 使用滤镜 将白色修改为深色
+                            let img = new Image()
+                            img.crossOrigin = ''
+                            // 设置图片不从缓存取，从缓存取可能会出现跨域，导致加载失败
+                            img.setAttribute('crossOrigin', 'anonymous')
+                            img.onload = function () {
+                                let canvas = document.createElement('canvas')
+                                let w = img.width
+                                let h = img.height
+                                canvas.width = w
+                                canvas.height = h
+                                let context = canvas.getContext('2d')
+                                context.filter = 'grayscale(98%) invert(100%) sepia(20%) hue-rotate(180deg) saturate(1600%) brightness(80%) contrast(90%)'
+                                context.drawImage(img, 0, 0, w, h, 0, 0, w, h)
+                                imageTile.getImage().src = canvas.toDataURL('image/png')
+                            }
+                            img.src = src
+                        },
+                }),
+              }),
+              new TileLayer({
+              source: new XYZ({
+                url: 'https://t0.tianditu.gov.cn/DataServer?x={x}&y={y}&l={z}&T=cva_w&tk=9df1e2d38f43b8983357c36603d366e5',
+                tileLoadFunction: function (imageTile, src) {
+                            // 使用滤镜 将白色修改为深色
+                            let img = new Image()
+                            img.crossOrigin = ''
+                            // 设置图片不从缓存取，从缓存取可能会出现跨域，导致加载失败
+                            img.setAttribute('crossOrigin', 'anonymous')
+                            img.onload = function () {
+                                let canvas = document.createElement('canvas')
+                                let w = img.width
+                                let h = img.height
+                                canvas.width = w
+                                canvas.height = h
+                                let context = canvas.getContext('2d')
+                                context.filter = 'grayscale(98%) invert(100%) sepia(20%) hue-rotate(180deg) saturate(1600%) brightness(80%) contrast(90%)'
+                                context.drawImage(img, 0, 0, w, h, 0, 0, w, h)
+                                imageTile.getImage().src = canvas.toDataURL('image/png')
+                            }
+                            img.src = src
+                        },
+              }),
             }),
+            // new TileLayer({
+            //     source: new XYZ({
+            //         url: 'http://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineStreetPurplishBlue/MapServer/tile/{z}/{y}/{x}'
+            //     })
+            // }),
 
             new VectorLayer({
                 source: vectorSource,
                 style: drawStyle,
             }),
         ],
+
         view: new View({
             center: [12923468.57, 4865948.20], // 使用墨卡托坐标范围内的一个点
             zoom: 3, // 适当的缩放级别
@@ -838,7 +958,6 @@ onMounted(() => {
             new FullScreen(), // 全屏控件
             new ScaleLine(), // 比例尺控件
             overviewMapControl,
-            new ZoomSlider(), // 缩放滑块
             new Rotate() // 旋转控件
         ]),
     });
@@ -867,6 +986,7 @@ onMounted(() => {
 
     get_satellite_list()
     restoreSelections();
+    
 });
 </script>
 
@@ -938,13 +1058,14 @@ onMounted(() => {
 
 /* 添加到 <style scoped> 中 */
 .checkbox-container {
+
     display: flex;
     /* 使用flex布局 */
     flex-direction: column;
     /* 使子元素垂直排列 */
     gap: 5px;
     /* 设置元素之间的间隙 */
-    max-height: 30vh;
+    height: 25vh;
     /* 设置一个最大高度 */
     overflow-y: auto;
     overflow-x: hidden;
@@ -1097,4 +1218,13 @@ body {
     padding: 0;
     overflow: hidden;
 }
+.overview-map {
+  position: absolute;
+  bottom: 7vh;
+  right: 0;
+  height: 150px;
+  width: 150px;
+  z-index: 1000;
+}
+
 </style>

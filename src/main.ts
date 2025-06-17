@@ -16,4 +16,9 @@ app.use(store);
 app.use(router);
 app.use(ElementPlus, { locale });
 app.mount("#app");
+// 监听浏览器关闭事件
+window.addEventListener('beforeunload', () => {
+  // 清除所有localStorage
+  localStorage.clear();
+});
 document.documentElement.classList.add('dark');

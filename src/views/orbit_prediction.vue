@@ -3,25 +3,14 @@
         <div class="title">
             <h1>卫星轨道预测可视化</h1>
         </div>
-        <div v-if="orbitData && selectedData" class="selected_info"
-            style="max-height: 15vh;overflow: hidden;overflow-y: auto;">
-            <div style="font-size: 14px;">
-                <ul>
-                    <li v-for="satellite in selectedData.satellite" :key="satellite">
-                        {{ satellite }}
-                    </li>
-                </ul>
-            </div>
-            <div style="margin-left: 1vw;font-size: 14px;">
-                <p>开始时间: {{ selectedData.time_start }}</p>
-                <p>结束时间: {{ selectedData.time_end }}</p>
-            </div>
-        </div>
         <div v-if="orbitData && selectedData" class="opera_box" :style="selectBoxStyles">
-            <p style="background-color:#283848; width: 100%;font-size: 16px;">轨道显示</p>
-            <div class="satellite-list" style="max-height: 25vh; overflow: hidden;overflow-y:auto;">
+            <div>
+            <p style="background-color:#283848; margin-left: 1vw;font-size: 14px;">开始时间: {{ selectedData.time_start.substring(0,19) }}</p>
+            <p style="background-color:#283848;margin-left: 1vw ;font-size: 14px;">结束时间: {{ selectedData.time_end.substring(0,19) }}</p>
+        </div>
+            <div class="satellite-list" style="max-height: 15vh; overflow: hidden;overflow-y:auto;">
                 <div v-for="(satellite, index) in selectedData.satellite" :key="satellite" class="satellite-item">
-                    <div class="radio-group">
+                    <div class="radio-group" style="font-size: 16px;background-color: #283848;">
                         {{ satellite }}
                         <el-checkbox-group v-model="selectedFeatures[satellite]">
                             <div class="checkbox-row">
@@ -47,25 +36,25 @@
             </div>
         </div>
         <div v-if="orbitData && selectedData" class="custom_box" :style="selectBoxStyles">
-            <p style="background-color:#283848; width: 100%;font-size: 16px;">播放速率</p>
-            <el-button @click="setPlaybackSpeed(1)" style="width: 20%;">1X</el-button>
+            <p style="background-color:#283848; margin-left: 1vw;font-size: 16px;">播放速率</p>
+            <el-button @click="setPlaybackSpeed(1)" style="margin-left: 1vw;   width: 20%;">1X</el-button>
             <el-button @click="setPlaybackSpeed(5)" style="width: 20%;">5X</el-button>
             <el-button @click="setPlaybackSpeed(30)" style="width: 20%;">30X</el-button>
             <el-button @click="setPlaybackSpeed(60)" style="width: 20%;">60X</el-button>
-            <p style="background-color:#283848; width: 100%;font-size: 16px;">观测视角</p>
+            <p style="background-color:#283848;margin-left: 1vw;font-size: 16px;">观测视角</p>
             <div>
                 <el-cascader v-model="cascaderValue" v-if="cascaderOptions.length > 0" :options="cascaderOptions"
                     :props="{ expandTrigger: 'hover' }" @change="handleCascaderChange" placeholder="观测视角" clearable
-                    style="width: 100%;"></el-cascader>
+                    style="margin-left: 1.5vw;width: 85%;"></el-cascader>
             </div>
             <div>
                 <el-cascader v-if="cascaderOptions_eyes.length > 0" v-model="cascaderValue_eye"
                     :options="cascaderOptions_eyes" :props="{ expandTrigger: 'hover' }" @change="handleEyesViewChange"
-                    clearable placeholder="鹰眼图" style="margin-top: 2vh;width: 100%;"></el-cascader>
+                    clearable placeholder="鹰眼图" style="margin-top: 2vh;margin-left: 1.5vw;width: 85%;"></el-cascader>
             </div>
             <div style="margin-top: 2vh;">
-                <el-button @click="back_home" style="width: 40%;">返回</el-button>
-                <el-button @click="resetCascader" style="width: 40%;">重置视图</el-button>
+                <el-button @click="back_home" style="margin-left: 1.5vw;  width: 40%;">返回</el-button>
+                <el-button @click="resetCascader" style="margin-left: 1.5vw;width: 40%;">重置视图</el-button>
             </div>
 
 
@@ -180,11 +169,11 @@ const back_home = () => {
 }
 const selectBoxStyles = computed(() => ({
     transition: 'width 0.5s',
-    width: isCollapsed.value ? '0' : '20%',
+    width: isCollapsed.value ? '0' : '25vw',
     overflow: isCollapsed.value ? 'hidden' : 'visible', // 当折叠时隐藏内容
 }));
 const arrow = computed(() => ({
-    marginLeft: isCollapsed.value ? '0' : '20%',
+    marginLeft: isCollapsed.value ? '0' : '26vw',
 }));
 // 观测角度选择变化时调用的函数
 const handleCascaderChange = (value) => {
@@ -255,6 +244,7 @@ const handleEyesViewChange = (value) => {
 };
 
 onMounted(() => {
+    Cesium.Ion.defaultAccessToken ='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI4MjkyOGY5YS1hYmQ0LTQzZTMtODBmMS0zM2IyNjhmNzgyY2IiLCJpZCI6MTU4ODQ3LCJpYXQiOjE2OTEzNzg5NDV9.xWR1MrInwMmJE0O7LJcPcMkCU37FzTLrvPX5M3CMAaI';
     viewer = new Cesium.Viewer('cesiumcontainer', { shouldAnimate: true });
     viewer_eye = new Cesium.Viewer('eyecontainer', {
         geocoder: false,
@@ -387,7 +377,7 @@ onMounted(() => {
 
     const createPositionData = (data, key) => {
         data.sort((a, b) => {
-            return new Date(a.time_iso) - new Date(b.time_iso);
+            return new Date(a.time_utc) - new Date(b.time_utc);
         });
         const one_position = [];
         const position_ground1 = [];
@@ -399,7 +389,7 @@ onMounted(() => {
         satellitePositions[key] = { property: new Cesium.SampledPositionProperty(), property2: new Cesium.SampledPositionProperty() };
         data.forEach((item) => {
 
-            const time = Cesium.JulianDate.fromIso8601(item.time_iso);
+            const time = Cesium.JulianDate.fromIso8601(item.time_utc);
             const lon = item.lon;
             const lat = item.lat;
             const height = item.height;
@@ -437,8 +427,8 @@ onMounted(() => {
         // 将信息对话框添加到 Cesium.Viewer 的容器中
         viewer.container.appendChild(infoDialog);
         infoDialogs[key] = infoDialog; // 为每个卫星存储对应的信息对话框
-        const firstTimeStr = orbit_data['orbit'][0].time_iso;
-        const lastTimeStr = orbit_data['orbit'][orbit_data['orbit'].length - 1].time_iso;
+        const firstTimeStr = orbit_data['orbit'][0].time_utc;
+        const lastTimeStr = orbit_data['orbit'][orbit_data['orbit'].length - 1].time_utc;
         const start = Cesium.JulianDate.fromIso8601(firstTimeStr);
         const stop = Cesium.JulianDate.fromIso8601(lastTimeStr);
         viewer.clock.startTime = start.clone();
@@ -467,18 +457,18 @@ onMounted(() => {
                 material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString(orbit_data['info'].color)),
             }
         });
-        const aircraftModelUrl = 'satellite003.gltf';
+        const aircraftModelUrl = 'satellite.gltf';
         aircraftEntitys[orbit_data['info'].chinese_name] = viewer.entities.add({
             show: true,
             name: orbit_data['info'].chinese_name,
             position: position.value,
             orientation: new Cesium.VelocityOrientationProperty(position.value),
             model: {
-                uri: aircraftModelUrl,
-                minimumPixelSize: 5000,
-                maximumScale: 50000,
-                color: Cesium.Color.BLACK,
-            }
+                    uri: aircraftModelUrl,
+                    minimumPixelSize: 100,
+                    maximumScale: 500,
+                    color: Cesium.Color.GREY,
+                }
         });
         satelliteEntities.value[orbit_data['info'].chinese_name] = aircraftEntitys[key];
 
@@ -655,24 +645,21 @@ onBeforeUnmount(() => {
     position: absolute;
     background-color: #2c3e50;
     margin-top: 20vh;
-    left: 0;
+    left: 1vw;
     z-index: 1000;
-    width: 25vw;
     font-size: 14px;
     max-height: 35vh;
-    overflow: hidden;
+
 
 }
 
 .custom_box {
     position: absolute;
     background-color: #2c3e50;
-    margin-top: 50vh;
-    left: 0;
-    width: 25vw;
+    margin-top: 44vh;
+    left: 1vw;
     z-index: 1000;
     font-size: 14px;
-    overflow: hidden;
 }
 
 .satellite-list {
@@ -743,7 +730,7 @@ onBeforeUnmount(() => {
     /* 子元素水平排列 */
     align-items: center;
     /* 子元素在交叉轴上居中对齐 */
-    font-size: 12px;
+    font-size: 14px;
     z-index: 1000;
 
 }
